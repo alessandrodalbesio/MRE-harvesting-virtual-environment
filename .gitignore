@@ -71,3 +71,15 @@ crashlytics-build.properties
 # Temporary auto-generated Android Assets
 /[Aa]ssets/[Ss]treamingAssets/aa.meta
 /[Aa]ssets/[Ss]treamingAssets/aa/*
+
+# Ignore Oculus folder
+/[Aa]ssets/[Oo]culus/
+/[Aa]ssets/[Rr]esources/
+/[Aa]ssets/XR/
+/[Aa]ssets/[Oo]culus.meta
+/[Aa]ssets/XR.meta
+/[Aa]ssets/[Rr]esources.meta
+
+# Builds
+*.apk
+*.unitypackage
