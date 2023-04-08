@@ -83,3 +83,10 @@ crashlytics-build.properties
 # Builds
 *.apk
 *.unitypackage
+app_BackUpThisFolder_ButDontShipItWithYourGame/
+Assets/Animated Loading Icons
+Assets/TextMesh Pro
+Models/
+Assets/Animated Loading Icons.meta
+Assets/Models.meta
+Assets/TextMesh Pro.meta
