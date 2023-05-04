@@ -8,27 +8,26 @@ using System;
 using UnityEngine;
 using UnityEngine.Networking;
 using SocketIOClient;
+using SocketIOClient.Newtonsoft.Json;
 
 class LoadScene : MonoBehaviour {
     /* Manage the socket.io communication with the server */
-    private SocketIOUnity socket;
     public bool sceneLoaded = false;
     private SQLiteConnectionManager dbManager;
+    public bool syncDB = false;
+    private SocketIOUnity ws;
 
-    void Start() {
+    void Update() {
         if (Parameters.LOADED_DATA == true && this.sceneLoaded == false) {
-            /* Create the connection to the database */
             this.dbManager = new SQLiteConnectionManager();
-
-            /* Syncronize the local database with the remote database */
-            //SyncLocalDatabase();
-            StartCoroutine(_SyncLocalDatabase());
-
-            /* Generate the socket connection */
-            //generateSocket();
-            
-            /* Set the scene as loaded */
-            this.sceneLoaded = true;
+            socketManagement();
+            this.syncDB = true;
+        }
+        if(syncDB) {
+            SyncLocalDatabase();
+            this.syncDB = false;
+            if (!this.sceneLoaded)
+                this.sceneLoaded = true;
         }
     }
 
@@ -60,11 +59,8 @@ class LoadScene : MonoBehaviour {
                 }
             }
 
-            if (!modelFound) {
-                Debug.Log("Active");
-                StartCoroutine(_save(modelFromServer));
-                /* Download the model */
-            }
+            if (!modelFound)
+                save(modelFromServer);
         }
 
         /* Verify if there are models to remove */
@@ -193,6 +189,10 @@ class LoadScene : MonoBehaviour {
         }
     }
 
+    private void save(Model model) {
+        StartCoroutine(_save(model));
+    }
+
     private IEnumerator _save(ModelTexture texture) {
         Debug.Log(texture.getDownloadUrl());
         /* Download the texture */
@@ -205,8 +205,8 @@ class LoadScene : MonoBehaviour {
             this.dbManager.saveTextureIntoDatabase(texture);
     }
 
-    private void save(Model model) {
-        StartCoroutine(_save(model));
+    private void save(ModelTexture textureToDownload) {
+        StartCoroutine(_save(textureToDownload));
     }
 
     /* Delete function */
@@ -223,10 +223,6 @@ class LoadScene : MonoBehaviour {
             Directory.Delete(model.getDirectory(), true);
     }
 
-    private void save(ModelTexture textureToDownload) {
-        StartCoroutine(_save(textureToDownload));
-    }
-
     private void delete(ModelTexture textureToDownload) {
         /* Delete the texture from the database */
         dbManager.deleteTextureFromDatabase(textureToDownload);
@@ -238,32 +234,70 @@ class LoadScene : MonoBehaviour {
         }
     }
 
-    private void getNewModel() {  }
+    private void loadModelInScene() {
 
-    private void updateModel() {  }
+    }
 
-    private void deleteModel() {  }
+    private void updateModelInScenePosition() {
 
-    private void getNewTexture() {  }
+    }
 
-    private void deleteTexture() {  }
+    private void setActiveModel(string IDModel, string IDTexture) { 
+        Debug.Log("Set active model"); 
+        Debug.Log(IDModel);
+        Debug.Log(IDTexture);
+    }
 
-    
-    private void generateSocket() {
-        var uri = new Uri("http://virtualenv.epfl.ch");
-        socket = new SocketIOUnity(uri, new SocketIOOptions { Path="/ws",  EIO = 4, Transport = SocketIOClient.Transport.TransportProtocol.WebSocket });
-        socket.OnConnected += (sender, e) => {
-            Debug.Log("Connected");
-        };
-        socket.Connect();
-        socket.On("set-active-model", (response) => {
-            Debug.Log("set-active-model");
+    private void socketManagement() {
+        /* Function needed to manage the json messages from the server */
+        string[] prepareJSON(string json) {
+            /* Remove some characters that are not useful */
+            json = json.Replace("[{", "");
+            json = json.Replace("}]", "");
+            json = json.Replace("\"", "");
+
+            /* Split and manage the string */
+            string[] jsonList = json.Split(new string[] { "," }, StringSplitOptions.None);
+            for(int i = 0; i < jsonList.Length; i++)
+                jsonList[i] = jsonList[i].Split(new string[] { ":" }, StringSplitOptions.None)[1];
+            
+            /* Return the result */
+            return jsonList;
+        }
+
+        /* Start connection */
+        ws = new SocketIOUnity(new Uri("http://virtualenv.epfl.ch"), new SocketIOOptions { 
+            Path=Parameters.WS_URL,
+            EIO = 4, 
+            Transport = SocketIOClient.Transport.TransportProtocol.WebSocket 
         });
-        socket.On("new-model", (response) => {
-            Debug.Log("new-model");
+        ws.JsonSerializer = new NewtonsoftJsonSerializer(); // Needed (know bug of the socketio library)
+        ws.Connect();
+        
+        /* Listen to events */
+        ws.On("set-active-model", (response) => {
+            string[] informations = prepareJSON(response.ToString());
+            if(informations.Length != 2) {
+                /* Verify that informations has length 2 */
+                Debug.LogError("Data from the server not valid.");
+                return;
+            }
+            setActiveModel(informations[0], informations[1]);
         });
-        socket.On("update-model", (response) => {
-            Debug.Log("update-model");
+        ws.On("new-model", (response) => {
+            this.syncDB = true;
+        });
+        ws.On("update-model", (response) => {
+            this.syncDB = true;
+        });
+        ws.On("delete-model", (response) => {
+            this.syncDB = true;
+        });
+        ws.On("new-texture", (response) => {
+            this.syncDB = true;
+        });
+        ws.On("delete-texture", (response) => {
+            this.syncDB = true;
         });
     }
 }

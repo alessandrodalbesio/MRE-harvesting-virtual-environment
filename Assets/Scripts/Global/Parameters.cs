@@ -3,7 +3,7 @@ using UnityEngine;
 class Parameters : MonoBehaviour {
     public static bool LOADED_DATA = true;
     public const string API_URL = "http://virtualenv.epfl.ch/api";
-    public const string WS_URL = "http://virtualenv.epfl.ch/ws";
+    public const string WS_URL = "/ws";
     public const string SERVER_MODELS_PATH = "http://virtualenv.epfl.ch/models/";
     public const string LOCAL_SAVE_PATH = "/Models/"; // Path where the models are saved
 
