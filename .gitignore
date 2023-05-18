@@ -72,21 +72,19 @@ crashlytics-build.properties
 /[Aa]ssets/[Ss]treamingAssets/aa.meta
 /[Aa]ssets/[Ss]treamingAssets/aa/*
 
-# Ignore Oculus folder
+# Ignore the files that are not needed in the project
 /[Aa]ssets/[Oo]culus/
-/[Aa]ssets/[Rr]esources/
-/[Aa]ssets/XR/
 /[Aa]ssets/[Oo]culus.meta
-/[Aa]ssets/XR.meta
+/[Aa]ssets/[Rr]esources/
 /[Aa]ssets/[Rr]esources.meta
+/[Aa]ssets/XR/
+/[Aa]ssets/XR.meta
+/[Aa]ssets/[Pp]ackages/
+/[Aa]ssets/[Pp]ackages.meta
+/[Aa]ssets/TextMesh Pro/
+/[Aa]ssets/TextMesh Pro.meta
 
 # Builds
 *.apk
 *.unitypackage
 app_BackUpThisFolder_ButDontShipItWithYourGame/
-Assets/Animated Loading Icons
-Assets/TextMesh Pro
-Models/
-Assets/Animated Loading Icons.meta
-Assets/Models.meta
-Assets/TextMesh Pro.meta
