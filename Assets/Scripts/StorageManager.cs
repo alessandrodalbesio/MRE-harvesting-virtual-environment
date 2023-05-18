@@ -3,16 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 
 class StorageManager {
-    public const bool HARD_RESET = true; /* Set this variable to true if you want to remove every file and directory from previous build */
-
     public StorageManager() {
-        /* Manage the hard reset */
-        if (HARD_RESET || Parameters.DEBUG_MODEL) {
-            /* Delete the main directory and its content if it exists */
-            if (Directory.Exists(Application.persistentDataPath + Parameters.LOCAL_SAVE_PATH))
-                Directory.Delete(Application.persistentDataPath + Parameters.LOCAL_SAVE_PATH, true);
-        }
-
         /* Create the main directory if it doesn't exist */
         if (!Directory.Exists(Application.persistentDataPath + Parameters.LOCAL_SAVE_PATH))
             Directory.CreateDirectory(Application.persistentDataPath + Parameters.LOCAL_SAVE_PATH);
@@ -35,9 +26,9 @@ class StorageManager {
         foreach (string line in lines) {
             string[] values = line.Split(';');
             Model model = new Model();
-            model.ID = values[0];
-            model.name = values[1];
-            model.extension = values[2];
+            model.IDModel = values[0];
+            model.modelName = values[1];
+            model.modelExtension = values[2];
             model.textures = new List<ModelTexture>();
             models.Add(model);
         }
@@ -48,9 +39,9 @@ class StorageManager {
 
             foreach (string line in linesTextures) {
                 string[] values = line.Split(';');
-                if (values[1] == models[i].ID) {
+                if (values[1] == models[i].IDModel) {
                     ModelTexture texture = new ModelTexture();
-                    texture.ID = values[0];
+                    texture.IDTexture = values[0];
                     texture.IDModel = values[1];
                     texture.isDefault = bool.Parse(values[2]);
                     texture.isColor = bool.Parse(values[3]);
@@ -75,7 +66,7 @@ class StorageManager {
         foreach (string line in lines) {
             string[] values = line.Split(';');
             ModelTexture texture = new ModelTexture();
-            texture.ID = values[0];
+            texture.IDTexture = values[0];
             texture.IDModel = values[1];
             texture.isDefault = bool.Parse(values[2]);
             texture.isColor = bool.Parse(values[3]);
@@ -99,7 +90,7 @@ class StorageManager {
             string[] values = line.Split(';');
             if (values[1] == IDModel) {
                 ModelTexture texture = new ModelTexture();
-                texture.ID = values[0];
+                texture.IDTexture = values[0];
                 texture.IDModel = values[1];
                 texture.isDefault = bool.Parse(values[2]);
                 texture.isColor = bool.Parse(values[3]);
@@ -117,7 +108,7 @@ class StorageManager {
     public Model getModel(string IDModel) {
         List<Model> models = this.getModels();
         foreach (Model model in models) {
-            if (model.ID == IDModel)
+            if (model.IDModel == IDModel)
                 return model;
         }
         return null;
@@ -127,7 +118,7 @@ class StorageManager {
     public ModelTexture getTexture(string IDModel, string IDTexture) {
         Model model = this.getModel(IDModel);
         foreach (ModelTexture texture in model.textures) {
-            if (texture.ID == IDTexture)
+            if (texture.IDTexture == IDTexture)
                 return texture;
         }
         return null;
@@ -140,7 +131,7 @@ class StorageManager {
 
         /* Write the model informations into the file */
         StreamWriter sw = new StreamWriter(Application.persistentDataPath + Parameters.LOCAL_SAVE_PATH + "/" + Parameters.MODEL_LOCAL_DATA_FILE, true);
-        sw.WriteLine(model.ID + ";" + model.name + ";" + model.extension);
+        sw.WriteLine(model.IDModel + ";" + model.modelName + ";" + model.modelExtension);
         sw.Close();
 
         /* Save the textures */
@@ -154,7 +145,7 @@ class StorageManager {
 
         /* Write the texture informations into the file */
         StreamWriter sw = new StreamWriter(Application.persistentDataPath + Parameters.LOCAL_SAVE_PATH + "/" + Parameters.TEXTURE_LOCAL_DATA_FILE, true);
-        sw.WriteLine(texture.ID + ";" + texture.IDModel + ";" + texture.isDefault + ";" + texture.isColor + ";" + texture.colorHex + ";" + texture.isImage + ";" + texture.extension);
+        sw.WriteLine(texture.IDTexture + ";" + texture.IDModel + ";" + texture.isDefault + ";" + texture.isColor + ";" + texture.colorHex + ";" + texture.isImage + ";" + texture.extension);
         sw.Close();
     }
 
@@ -169,7 +160,7 @@ class StorageManager {
 
         foreach (string line in lines) {
             string[] values = line.Split(';');
-            if (values[0] != model.ID)
+            if (values[0] != model.IDModel)
                 sw.WriteLine(line);
         }
 
@@ -190,7 +181,7 @@ class StorageManager {
 
         foreach (string line in lines) {
             string[] values = line.Split(';');
-            if (values[0] != texture.ID)
+            if (values[0] != texture.IDTexture)
                 sw.WriteLine(line);
         }
 

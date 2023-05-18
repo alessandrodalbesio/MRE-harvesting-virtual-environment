@@ -168,7 +168,6 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   sceneLoader: {fileID: 1381460460}
-  trackers: {fileID: 1073041704}
 --- !u!850595691 &955364681
 LightingSettings:
   m_ObjectHideFlags: 0
@@ -275,7 +274,11 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 23b8c5fd329c7bc45ab428020e5ca54f, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  ISDEBUG: 1
+  trackersPrefab: {fileID: 0}
+  trackersMaterial: {fileID: 0}
+  showTrackersInScene: 1
+  trackersParent: {fileID: 0}
+  sceneLoader: {fileID: 0}
 --- !u!1 &1181155453
 GameObject:
   m_ObjectHideFlags: 0
@@ -373,21 +376,19 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: da5341db9b28977429d49f1eccf4557d, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  TrackerSynchronizer: {fileID: 1073041704}
-  syncManager: {fileID: 270390650}
-  trackersPrefab: {fileID: 1757448963589972021, guid: 6a741b2d65ae3b34c99a3df9c841b1d0, type: 3}
-  showTrackers: 1
+  defaultMaterial: {fileID: 2100000, guid: dfa2f9f62bb1d014f9fd5ce9896ffb9a, type: 2}
+  realObjectNameModel: calyx real
+  realObjectDimensions: {x: 0.05, y: 0.05, z: 0.05}
   table_material: {fileID: 2100000, guid: fd89b1659f3d16d479edb4e8a7ef9df6, type: 2}
   TABLE_LEG_DIMENSION: 0.1
-  TABLE_BASE_HEIGHT: 0.1
+  TABLE_TOP_HEIGHT: 0.1
   holder_material: {fileID: 2100000, guid: dfa2f9f62bb1d014f9fd5ce9896ffb9a, type: 2}
   HOLDER_DIMENSION: 0.1
   MIN_LENGTH: 1.5
   LENGTH_OFFSET: 0.5
   CEILING_HEIGHT: 2.5
   WIDTH_OFFSET: 0.2
-  realObjectDimensions: {x: 0.05, y: 0.05, z: 0.05}
-  createNewObject: 0
+  TrackersSynchronizer: {fileID: 0}
 --- !u!4 &1381460462
 Transform:
   m_ObjectHideFlags: 0
@@ -526,7 +527,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 400004, guid: 126d619cf4daa52469682f85c1378b4a, type: 3}
       propertyPath: m_LocalPosition.z
-      value: 0
+      value: -0.5
       objectReference: {fileID: 0}
     - target: {fileID: 400004, guid: 126d619cf4daa52469682f85c1378b4a, type: 3}
       propertyPath: m_LocalRotation.w

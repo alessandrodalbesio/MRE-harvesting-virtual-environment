@@ -135,7 +135,9 @@ PlayerSettings:
     16:9: 1
     Others: 1
   bundleVersion: 0.1
-  preloadedAssets: []
+  preloadedAssets:
+  - {fileID: 11400000, guid: 3b3f624879a25d04990c4daca7d5237c, type: 2}
+  - {fileID: -4066981593756491547, guid: 43af9ff944cee534ca6c2415398aa958, type: 2}
   metroInputSource: 0
   wsaTransparentSwapchain: 0
   m_HolographicPauseOnTrackingLoss: 1
@@ -708,7 +710,8 @@ PlayerSettings:
   webGLThreadsSupport: 0
   webGLDecompressionFallback: 0
   webGLPowerPreference: 2
-  scriptingDefineSymbols: {}
+  scriptingDefineSymbols:
+    Android: ROS2;ROS2
   additionalCompilerArguments: {}
   platformArchitecture: {}
   scriptingBackend:

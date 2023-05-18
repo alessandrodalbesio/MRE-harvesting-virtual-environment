@@ -8,43 +8,27 @@ using UnityEngine.Networking;
 
 class Synchronizer : MonoBehaviour {
     /* Storage manager */
-    private StorageManager storageManager = new StorageManager();
+    private StorageManager storageManager;
     
-    /* Synchronization variables */
-    private bool syncLocalStorage = false;
-    public bool IsBusy {
-        get { return this.syncLocalStorage; }
-    }
-    
-    /* Active model variables */
-    private bool newActiveModel = false;
-    public bool IsNewActiveModel() {
-        bool tmp = this.newActiveModel;
-        this.newActiveModel = false;
-        return tmp;
-    }
-    private Dictionary<string,string> activeModelInfo = new Dictionary<string, string>();
-    public Dictionary<string,string> ActiveModelInfo {
-        get { return this.activeModelInfo; }
-    }
+    /* Reference to scene loader */
+    public GameObject sceneLoader;
 
     /* Pooling variables */
     private long poolAtMS = 0;
 
+    private bool isBusy = false;
+    private bool IsBusy {
+        get { return this.isBusy; }
+    }
 
+    /* Methods */
     void Start() {
+        this.storageManager = new StorageManager();
         this.SyncLocalDatabase();
-        this.activeModelInfo.Add("IDModel", null);
-        this.activeModelInfo.Add("IDTexture", null);
     }
 
     void Update() {
-        /* Pool the server for new informations */
         poolServer();
-
-        /* Synchronize the local database with the server database if new data are presents */
-        if(this.syncLocalStorage == true)
-            this.SyncLocalDatabase();
     }
     
     private void compareDataAndDownload(List<Model> modelsFromServer, List<Model> modelsSavedLocally) {
@@ -69,7 +53,7 @@ class Synchronizer : MonoBehaviour {
         foreach (Model modelFromServer in modelsFromServer) {
             bool modelFound = false;
             foreach (Model modelSavedLocally in modelsSavedLocally) {
-                if (modelFromServer.ID == modelSavedLocally.ID) {
+                if (modelFromServer.IDModel == modelSavedLocally.IDModel) {
                     modelFound = true;
                     break;
                 }
@@ -83,7 +67,7 @@ class Synchronizer : MonoBehaviour {
         foreach (Model modelSavedLocally in modelsSavedLocally) {
             bool modelFound = false;
             foreach (Model modelFromServer in modelsFromServer) {
-                if (modelFromServer.ID == modelSavedLocally.ID) {
+                if (modelFromServer.IDModel == modelSavedLocally.IDModel) {
                     modelFound = true;
                     break;
                 }
@@ -95,11 +79,11 @@ class Synchronizer : MonoBehaviour {
         /* Verify if there are new textures to download */
         foreach (Model modelFromServer in modelsFromServer) {
             foreach (Model modelSavedLocally in modelsSavedLocally) {
-                if (modelFromServer.ID == modelSavedLocally.ID) {
+                if (modelFromServer.IDModel == modelSavedLocally.IDModel) {
                     foreach (ModelTexture textureFromServer in modelFromServer.textures) {
                         bool textureFound = false;
                         foreach (ModelTexture textureSavedLocally in modelSavedLocally.textures) {
-                            if (textureFromServer.ID == textureSavedLocally.ID) {
+                            if (textureFromServer.IDTexture == textureSavedLocally.IDTexture) {
                                 textureFound = true;
                                 break;
                             }
@@ -115,11 +99,11 @@ class Synchronizer : MonoBehaviour {
         /* Verify if there are textures to remove */
         foreach (Model modelSavedLocally in modelsSavedLocally) {
             foreach (Model modelFromServer in modelsFromServer) {
-                if (modelFromServer.ID == modelSavedLocally.ID) {
+                if (modelFromServer.IDModel == modelSavedLocally.IDModel) {
                     foreach (ModelTexture textureSavedLocally in modelSavedLocally.textures) {
                         bool textureFound = false;
                         foreach (ModelTexture textureFromServer in modelFromServer.textures) {
-                            if (textureFromServer.ID == textureSavedLocally.ID) {
+                            if (textureFromServer.IDTexture == textureSavedLocally.IDTexture) {
                                 textureFound = true;
                                 break;
                             }
@@ -151,8 +135,18 @@ class Synchronizer : MonoBehaviour {
 
             if (numberOfBrackets == 0 && startingPosition != 0) {
                 string modelString = str.Substring(startingPosition, i - startingPosition + 1);
+                Debug.Log(modelString);
                 modelsSavedIntoServer.Add(JsonUtility.FromJson<Model>(modelString));
                 startingPosition = 0;
+            }
+        }
+
+        /* Display the ID of all the textures */
+        foreach (Model model in modelsSavedIntoServer) {
+            Debug.Log("Model ID" + model.IDModel);
+            Debug.Log(model.textures[0].IDTexture);
+            foreach (ModelTexture texture in model.textures) {
+                Debug.Log("Texture ID" + texture);
             }
         }
 
@@ -175,14 +169,15 @@ class Synchronizer : MonoBehaviour {
                     List<Model> modelsFromServer = this.convertModelListJSONToList(webRequest.downloadHandler.text);
                     List<Model> modelsSavedLocally = this.storageManager.getModels();
                     this.compareDataAndDownload(modelsFromServer, modelsSavedLocally);
-                    this.syncLocalStorage = false;
                     break;
             }
         }
     }
 
     private void SyncLocalDatabase() {
+        this.isBusy = true;
         StartCoroutine(_SyncLocalDatabase());
+        this.isBusy = false;
     }
 
     private IEnumerator _save(Model modelToSave) {
@@ -262,7 +257,9 @@ class Synchronizer : MonoBehaviour {
                     Debug.LogError(webRequest.error);
                     break;
                 case UnityWebRequest.Result.Success:
-                    this.syncLocalStorage = webRequest.downloadHandler.text.Split(":")[1].Replace("}", "").Replace("\n", "") == "true";
+                    bool newContents = webRequest.downloadHandler.text.Split(":")[1].Replace("}", "").Replace("\n", "") == "true";
+                    if (newContents)
+                        this.SyncLocalDatabase();
                     break;
             }
         }
@@ -270,12 +267,14 @@ class Synchronizer : MonoBehaviour {
 
     private void setActiveModelFromServerResponse(string serverResponse) {
         serverResponse = serverResponse.Replace("\"", "").Replace("{", "").Replace("}", "").Replace("\n", "");
-        this.activeModelInfo["IDModel"] = serverResponse.Split(",")[0].Split(":")[1];
-        this.activeModelInfo["IDTexture"] = serverResponse.Split(",")[1].Split(":")[1];
+        string IDModel = serverResponse.Split(",")[0].Split(":")[1];
+        string IDTexture = serverResponse.Split(",")[1].Split(":")[1];        
+        sceneLoader.GetComponent<SceneLoader>().setActiveObjectInScene(IDModel == "null" ? null : IDModel, IDTexture == "null" ? null : IDTexture);
     }
 
     /* Pooling to verify if there is an active model */
     private IEnumerator _checkForActiveModel() {
+        Debug.Log(Parameters.WS_API_GET_ACTIVE_MODEL_ENPOINT);
         using (UnityWebRequest webRequest = UnityWebRequest.Get(Parameters.WS_API_GET_ACTIVE_MODEL_ENPOINT)) {
             /* Request and wait for the desired page. */
             yield return webRequest.SendWebRequest();
@@ -287,9 +286,7 @@ class Synchronizer : MonoBehaviour {
                     Debug.LogError(webRequest.error);
                     break;
                 case UnityWebRequest.Result.Success:
-                    this.newActiveModel = !webRequest.downloadHandler.text.Split(",")[0].Replace("{", "").Replace("\"", "").Split(":")[1].Equals("null");
-                    if (this.newActiveModel)
-                        this.setActiveModelFromServerResponse(webRequest.downloadHandler.text);
+                    this.setActiveModelFromServerResponse(webRequest.downloadHandler.text);
                     break;
             }
         }
