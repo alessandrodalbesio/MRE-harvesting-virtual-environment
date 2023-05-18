@@ -79,10 +79,12 @@ crashlytics-build.properties
 /[Aa]ssets/[Rr]esources.meta
 /[Aa]ssets/XR/
 /[Aa]ssets/XR.meta
-/[Aa]ssets/[Pp]ackages/
-/[Aa]ssets/[Pp]ackages.meta
 /[Aa]ssets/TextMesh Pro/
 /[Aa]ssets/TextMesh Pro.meta
+
+# Ignore all the folder in Packages but not the folder OBJImport
+/[Aa]ssets/[Pp]ackages/*
+!/[Aa]ssets/[Pp]ackages/OBJImport
 
 # Builds
 *.apk
