@@ -3,10 +3,10 @@ using System.Collections.Generic;
 using UnityEngine;
 using Dummiesman;
 
-public class SceneLoader : MonoBehaviour {
+class SceneLoader : MonoBehaviour {
     /* Real object parameters */
     public string realObjectNameModel = "calyx real"; /* This is the sub object that should be used as a reference for making the resizing */
-    public Vector3 realObjectDimensions = new Vector3(0.1f,0.1f,0.1f); /* Real size of the object in cm */
+    public Vector3 realObjectDimensions = new Vector3(0.05f,0.05f,0.05f); /* Real size of the object in cm */
 
     /* Table parameters */
     public Material table_material;
@@ -16,12 +16,6 @@ public class SceneLoader : MonoBehaviour {
     /* Holder parameters */    
     public Material holder_material;
     public float HOLDER_DIMENSION = 0.1f;
-
-    /* Environment options */
-    public float MIN_LENGTH = 1.5f;
-    public float LENGTH_OFFSET = 0.5f;
-    public float CEILING_HEIGHT = 2.5f;
-    public float WIDTH_OFFSET = 0.2f;
 
     /* Internal variables */
     private bool isSceneReady = false;
@@ -38,27 +32,30 @@ public class SceneLoader : MonoBehaviour {
     /* Default material for the creation of the objects */
     public Material defaultMaterial;
 
+    void Update() {
+        /* Check if the trackers are ready */
+        if(this.GetComponent<TrackersSynchronizer>().IsReady == false)
+            return;
 
-    void Start() {
-        /* To remove this part when the tracking part has been done */
-        Dictionary<string,Vector3> tableTrackers = new Dictionary<string, Vector3>();
-        Dictionary<string,Vector3> holderTrackers = new Dictionary<string, Vector3>();
-        Dictionary<string,Vector3> headsetTrackers = new Dictionary<string, Vector3>();
-        Dictionary<string,Vector3> objectTrackers = new Dictionary<string, Vector3>();
+        /* Refresh the scene */
+        this.refreshScene();
 
-        tableTrackers.Add("front-left", new Vector3(0,1.0f,0));
-        tableTrackers.Add("back-right", new Vector3(1.0f,1.0f,0.5f));
-        holderTrackers.Add("front-left-low", new Vector3(0.3f,1.05f,0));
-        holderTrackers.Add("back-right-low", new Vector3(0.7f,1.05f,0.5f));
-        holderTrackers.Add("top-center-front", new Vector3(0.5f,1.6f,0));
-        holderTrackers.Add("top-center-back", new Vector3(0.5f,1.6f,0.3f));
-        holderTrackers.Add("rope-attach-point", new Vector3(0.5f,1.55f,0));
-
-        this.createTableInScene(tableTrackers);
-        this.createHolderInScene(holderTrackers);
+        /* Check if there is a new model from the synchronization */
+        if (currentActiveModelID != this.GetComponent<DataSynchronizer>().ActiveModelID || currentActiveTextureID != this.GetComponent<DataSynchronizer>().ActiveTextureID) {
+            Destroy(this.activeModel);
+            if (this.GetComponent<DataSynchronizer>().ActiveModelID != null) {
+                this.createModelInScene(this.GetComponent<DataSynchronizer>().ActiveModelID, this.GetComponent<DataSynchronizer>().ActiveTextureID);
+            } else {
+                this.currentActiveModelID = null;
+                this.currentActiveTextureID = null;
+            }
+        }
     }
 
-    private void createTableInScene(Dictionary<string,Vector3> tableTrackers) {
+    private void createTableInScene() {
+        /* Get the table trackers */
+        Dictionary<string,Vector3> tableTrackers = this.GetComponent<TrackersSynchronizer>().TableTrackers;
+
         /* Get the values of the trackers */
         Vector3 FrontLeftTableTracker = tableTrackers["front-left"];
         Vector3 BackRightTableTracker = tableTrackers["back-right"];
@@ -111,7 +108,10 @@ public class SceneLoader : MonoBehaviour {
         tableTop.GetComponent<Renderer>().material = table_material;
     }
 
-    private void createHolderInScene(Dictionary<string,Vector3> holderTrackers) {
+    private void createHolderInScene() {
+        /* Get the holder trackers */
+        Dictionary<string,Vector3> holderTrackers = this.GetComponent<TrackersSynchronizer>().HolderTrackers;
+
         /* Define global variables */
         Vector3 holderFrontLeftLow = holderTrackers["front-left-low"];
         Vector3 holderBackRightLow = holderTrackers["back-right-low"];
@@ -155,41 +155,32 @@ public class SceneLoader : MonoBehaviour {
         holderArm2.transform.localScale = holderArm2Size;
         holderArm2.GetComponent<Renderer>().material = holder_material;
     }
-
-    public Vector3 getEstimatedObjectCenter(Dictionary<string,Vector3> objectTrackers) {
-        return new Vector3(0.5f, 1.40f, 0.05f);
-    }
-
-    public Quaternion getEstimatedObjectRotation(Dictionary<string,Vector3> objectTrackers) {
-        return new Quaternion(0,0,0,0);
-    }
     
-    private void manageObjectInScene(string IDModel, string IDTexture) {
+    private void createModelInScene(string IDModel, string IDTexture) {
         /* Get the variables needed to get the active model */
         StorageManager storageManager = new StorageManager();
         OBJLoader objLoader = new OBJLoader();
         objLoader.setDefaultMaterial(defaultMaterial);
-
         Model model = storageManager.getModel(IDModel);
+
         /* Get the model from the database and create it */
-        Debug.Log("GET FILE: " + model.getFile());
         activeModel = objLoader.Load(model.getFile());
-        Debug.Log("Active model loaded");
         GameObject refObject = GameObject.Find(this.realObjectNameModel);
         Vector3 loadedModelDimensions = refObject.GetComponent<Renderer>().bounds.size;
         Vector3 scalingFactor = new Vector3(realObjectDimensions.x / loadedModelDimensions.x, realObjectDimensions.y / loadedModelDimensions.y, realObjectDimensions.z / loadedModelDimensions.z);
         activeModel.transform.localScale = scalingFactor;
         activeModel.transform.parent = this.gameObject.transform;
         activeModel.name = "active-model";
-        activeModel.transform.position = getEstimatedObjectCenter(new Dictionary<string, Vector3>());
-        activeModel.transform.rotation = getEstimatedObjectRotation(new Dictionary<string, Vector3>());
+
+        /* Get the position and rotation of the model */
+        activeModel.transform.position = this.GetComponent<TrackersSynchronizer>().getObjectPosition();
+        activeModel.transform.rotation = this.GetComponent<TrackersSynchronizer>().getObjectRotation();
 
         /* Get the texture from the database and apply it to the model based on its type */
         ModelTexture texture = storageManager.getTexture(IDModel, IDTexture);
         if (texture.isColor == true) {
             Color newColor;
             if(ColorUtility.TryParseHtmlString(texture.colorHex, out newColor)) {
-                // Add the color to all the childs of the model
                 foreach (Transform child in activeModel.transform) {
                     child.GetComponent<Renderer>().material.color = newColor;
                 }
@@ -197,51 +188,32 @@ public class SceneLoader : MonoBehaviour {
         }
     }
 
-    public void setActiveObjectInScene(string IDModel, string IDTexture) {
-        if (IDModel == null && currentActiveModelID != null) {
-            currentActiveModelID = null;
-            currentActiveTextureID = null;
-            Destroy(activeModel);
-            activeModel = null;
-        }
-        else if (IDModel != null && (currentActiveModelID == null || currentActiveModelID != IDModel || IDTexture != currentActiveTextureID)) {
-            StorageManager storageManager = new StorageManager();
-            currentActiveModelID = IDModel;
-            currentActiveTextureID = IDTexture;
-            if (activeModel != null) {
-                Destroy(activeModel);
-                activeModel = null;
-            }
-            manageObjectInScene(IDModel, IDTexture);
-        }
-    }
-
     /* Refresh the scene with the new trackers positions */
-    public void refreshScene(Dictionary<string,Vector3> tableTrackers, Dictionary<string,Vector3> holderTrackers, Dictionary<string,Vector3> headsetTrackers, Dictionary<string,Vector3> objectTrackers) {
+    public void refreshScene() {
         if (!isSceneReady)
-            this.createScene(tableTrackers, holderTrackers, headsetTrackers);
+            this.createScene();
         else
-            this.updateScene(headsetTrackers, objectTrackers);
+            this.updateScene();
     }
 
 
     /* Create the scene with the given trackers positions */
-    public void createScene(Dictionary<string,Vector3> tableTrackers, Dictionary<string,Vector3> holderTrackers, Dictionary<string,Vector3> headsetTrackers) {
+    public void createScene() {
         if (isSceneReady == true) 
             return;
 
         /* Create the table */
-        this.createTableInScene(tableTrackers);
+        this.createTableInScene();
 
         /* Create the holder */
-        this.createHolderInScene(holderTrackers);
+        this.createHolderInScene();
 
         this.isSceneReady = true;
 
     }
 
     /* Update the scene with the given trackers positions (only headsets and objects ones) */
-    public void updateScene(Dictionary<string,Vector3> headsetTrackers, Dictionary<string,Vector3> objectTrackers) {
+    public void updateScene() {
 
     }
 

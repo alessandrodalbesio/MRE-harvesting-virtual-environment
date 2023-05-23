@@ -19,7 +19,7 @@ class Parameters : MonoBehaviour {
 
 
     /* Consts for synchronization */
-    public const long TIME_BETWEEN_POLLING_MS = 5000;
+    public const long TIME_BETWEEN_POLLING_MS = 2500;
 
 
     /* Parameters for ROS */

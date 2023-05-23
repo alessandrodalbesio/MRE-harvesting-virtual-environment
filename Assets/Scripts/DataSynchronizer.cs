@@ -6,23 +6,31 @@ using System;
 using UnityEngine;
 using UnityEngine.Networking;
 
-class Synchronizer : MonoBehaviour {
+class DataSynchronizer : MonoBehaviour {
     /* Storage manager */
     private StorageManager storageManager;
     
-    /* Reference to scene loader */
-    public GameObject sceneLoader;
-
     /* Pooling variables */
     private long poolAtMS = 0;
 
+    /* Variable used by the sceneLoader to see if the synchronizer is busy */
     private bool isBusy = false;
-    private bool IsBusy {
+    public bool IsBusy {
         get { return this.isBusy; }
     }
 
+    /* Variable used by the sceneLoader to get the active model info */
+    private string activeModelID;
+    public string ActiveModelID {
+        get { return this.activeModelID; }
+    }
+    private string activeTextureID;
+    public string ActiveTextureID {
+        get { return this.activeTextureID; }
+    }
+
     /* Methods */
-    void Start() {
+    void Awake() {
         this.storageManager = new StorageManager();
         this.SyncLocalDatabase();
     }
@@ -138,15 +146,6 @@ class Synchronizer : MonoBehaviour {
                 Debug.Log(modelString);
                 modelsSavedIntoServer.Add(JsonUtility.FromJson<Model>(modelString));
                 startingPosition = 0;
-            }
-        }
-
-        /* Display the ID of all the textures */
-        foreach (Model model in modelsSavedIntoServer) {
-            Debug.Log("Model ID" + model.IDModel);
-            Debug.Log(model.textures[0].IDTexture);
-            foreach (ModelTexture texture in model.textures) {
-                Debug.Log("Texture ID" + texture);
             }
         }
 
@@ -267,14 +266,12 @@ class Synchronizer : MonoBehaviour {
 
     private void setActiveModelFromServerResponse(string serverResponse) {
         serverResponse = serverResponse.Replace("\"", "").Replace("{", "").Replace("}", "").Replace("\n", "");
-        string IDModel = serverResponse.Split(",")[0].Split(":")[1];
-        string IDTexture = serverResponse.Split(",")[1].Split(":")[1];        
-        sceneLoader.GetComponent<SceneLoader>().setActiveObjectInScene(IDModel == "null" ? null : IDModel, IDTexture == "null" ? null : IDTexture);
+        this.activeModelID = serverResponse.Split(",")[0].Split(":")[1];
+        this.activeTextureID = serverResponse.Split(",")[1].Split(":")[1];        
     }
 
     /* Pooling to verify if there is an active model */
     private IEnumerator _checkForActiveModel() {
-        Debug.Log(Parameters.WS_API_GET_ACTIVE_MODEL_ENPOINT);
         using (UnityWebRequest webRequest = UnityWebRequest.Get(Parameters.WS_API_GET_ACTIVE_MODEL_ENPOINT)) {
             /* Request and wait for the desired page. */
             yield return webRequest.SendWebRequest();
