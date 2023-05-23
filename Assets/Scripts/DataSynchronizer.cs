@@ -10,9 +10,6 @@ class DataSynchronizer : MonoBehaviour {
     /* Storage manager */
     private StorageManager storageManager;
     
-    /* Pooling variables */
-    private long poolAtMS = 0;
-
     /* Variable used by the sceneLoader to see if the synchronizer is busy */
     private bool isBusy = false;
     public bool IsBusy {
@@ -33,10 +30,6 @@ class DataSynchronizer : MonoBehaviour {
     void Awake() {
         this.storageManager = new StorageManager();
         this.SyncLocalDatabase();
-    }
-
-    void Update() {
-        poolServer();
     }
     
     private void compareDataAndDownload(List<Model> modelsFromServer, List<Model> modelsSavedLocally) {
@@ -264,37 +257,20 @@ class DataSynchronizer : MonoBehaviour {
         }
     }
 
-    private void setActiveModelFromServerResponse(string serverResponse) {
+
+    /* Function used by websocket.cs to set the active model */
+    public void setActiveModelFromServerResponse(string serverResponse) {
         serverResponse = serverResponse.Replace("\"", "").Replace("{", "").Replace("}", "").Replace("\n", "");
         this.activeModelID = serverResponse.Split(",")[0].Split(":")[1];
         this.activeTextureID = serverResponse.Split(",")[1].Split(":")[1];        
     }
 
-    /* Pooling to verify if there is an active model */
-    private IEnumerator _checkForActiveModel() {
-        using (UnityWebRequest webRequest = UnityWebRequest.Get(Parameters.WS_API_GET_ACTIVE_MODEL_ENPOINT)) {
-            /* Request and wait for the desired page. */
-            yield return webRequest.SendWebRequest();
-
-            switch (webRequest.result) {
-                case UnityWebRequest.Result.ConnectionError:
-                case UnityWebRequest.Result.DataProcessingError:
-                case UnityWebRequest.Result.ProtocolError:
-                    Debug.LogError(webRequest.error);
-                    break;
-                case UnityWebRequest.Result.Success:
-                    this.setActiveModelFromServerResponse(webRequest.downloadHandler.text);
-                    break;
-            }
-        }
+    public void refreshDatabase() {
+        this.SyncLocalDatabase();
     }
 
-    private void poolServer() {
-        long currentTime = DateTimeOffset.Now.ToUnixTimeMilliseconds();
-        if (currentTime > poolAtMS) {
-            poolAtMS = currentTime + Parameters.TIME_BETWEEN_POLLING_MS; /* Wait at least 5 seconds before checking again to avoid overload on the server */
-            StartCoroutine(_checkForActiveModel());
-            StartCoroutine(_checkForNewUpdate());
-        }
+    public void unsetActiveModelFromServer() {
+        this.activeModelID = null;
+        this.activeTextureID = null;
     }
 }
