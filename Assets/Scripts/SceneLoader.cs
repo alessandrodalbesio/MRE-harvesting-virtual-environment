@@ -2,8 +2,10 @@
 using System.Collections.Generic;
 using UnityEngine;
 using Dummiesman;
+using WebSocketSharp;
 
 class SceneLoader : MonoBehaviour {
+
     /* Real object parameters */
     public string realObjectNameModel = "calyx real"; /* This is the sub object that should be used as a reference for making the resizing */
     public Vector3 realObjectDimensions = new Vector3(0.05f,0.05f,0.05f); /* Real size of the object in cm */
@@ -25,12 +27,48 @@ class SceneLoader : MonoBehaviour {
     private Vector3 tableTopCenterPosition;
 
     /* Active model info */
-    private string currentActiveModelID = null;
-    private string currentActiveTextureID = null;
+    private string activeModelID = null;
+    private string activeTextureID = null;
     private GameObject activeModel = null;
+    private bool scheduledActiveModelRemoval = false;
+    private bool scheduledAtiveModelCreation = false;
 
     /* Default material for the creation of the objects */
     public Material defaultMaterial;
+
+    /* Websocket variables */
+    WebSocket ws;
+
+    void Start() {
+        ws = new WebSocket(Parameters.WEBSOCKET_SERVER_URL);
+
+        ws.OnOpen += (sender, e) => {
+            Debug.Log("WebSocket connection open DataSyncronizer");
+        };
+
+        ws.OnClose += (sender, e) => {
+            Debug.Log("WebSocket connection closed");
+        };
+
+        ws.OnMessage += (sender, e) => {
+            string type = e.Data.Split(",")[0].Replace("}", "").Replace("\"", "").Replace("{", "").Split(":")[1].Replace(" ", "");
+            if (type == "set-active-model") {
+                this.activeModelID = e.Data.Split(",")[1].Replace("\"", "").Replace(" ", "").Split(":")[2];
+                this.activeTextureID = e.Data.Split(",")[2].Replace("\"", "").Replace(" ", "").Replace("}", "").Split(":")[1];
+                this.scheduledAtiveModelCreation = true;
+            } else if (type == "unset-active-model") {
+                this.activeModelID = null;
+                this.activeTextureID = null;
+                this.scheduledActiveModelRemoval = true;
+            }
+        };
+
+        ws.OnError += (sender, e) => {
+            Debug.Log("WebSocket error: " + e);
+        };
+
+        ws.Connect();
+    } 
 
     void Update() {
         /* Check if the trackers are ready */
@@ -38,23 +76,26 @@ class SceneLoader : MonoBehaviour {
             return;
 
         /* Refresh the scene */
-        this.refreshScene();
+        // this.refreshScene();
 
-        /* Check if there is a new model from the synchronization */
-        if (currentActiveModelID != this.GetComponent<DataSynchronizer>().ActiveModelID || currentActiveTextureID != this.GetComponent<DataSynchronizer>().ActiveTextureID) {
-            Destroy(this.activeModel);
-            if (this.GetComponent<DataSynchronizer>().ActiveModelID != null) {
-                this.createModelInScene(this.GetComponent<DataSynchronizer>().ActiveModelID, this.GetComponent<DataSynchronizer>().ActiveTextureID);
-            } else {
-                this.currentActiveModelID = null;
-                this.currentActiveTextureID = null;
+        /* Manage the active model */
+        if (this.scheduledActiveModelRemoval == true || this.scheduledAtiveModelCreation == true) {
+            this.scheduledActiveModelRemoval = false;
+            if (activeModel != null) {
+                Destroy(activeModel);
             }
         }
-    }
+
+        if (this.scheduledAtiveModelCreation == true && this.GetComponent<DataSynchronizer>().IsBusy == false) {
+            Debug.Log(this.GetComponent<DataSynchronizer>().IsBusy);
+            this.scheduledAtiveModelCreation = false;
+            this.createModelInScene(this.activeModelID, this.activeTextureID);
+        }
+    }   
 
     private void createTableInScene() {
         /* Get the table trackers */
-        Dictionary<string,Vector3> tableTrackers = this.GetComponent<TrackersSynchronizer>().TableTrackers;
+        Dictionary<string,Vector3> tableTrackers = new Dictionary<string, Vector3>();
 
         /* Get the values of the trackers */
         Vector3 FrontLeftTableTracker = tableTrackers["front-left"];
@@ -110,7 +151,7 @@ class SceneLoader : MonoBehaviour {
 
     private void createHolderInScene() {
         /* Get the holder trackers */
-        Dictionary<string,Vector3> holderTrackers = this.GetComponent<TrackersSynchronizer>().HolderTrackers;
+        Dictionary<string,Vector3> holderTrackers = new Dictionary<string, Vector3>();
 
         /* Define global variables */
         Vector3 holderFrontLeftLow = holderTrackers["front-left-low"];
@@ -215,23 +256,5 @@ class SceneLoader : MonoBehaviour {
     /* Update the scene with the given trackers positions (only headsets and objects ones) */
     public void updateScene() {
 
-    }
-
-    /* Utilities functions */
-    public Vector3 quaternionToEuler(Quaternion q) {
-        Vector3 euler = new Vector3();
-        euler.x = Mathf.Atan2(2 * (q.w * q.x + q.y * q.z), 1 - 2 * (Mathf.Pow(q.x, 2) + Mathf.Pow(q.y, 2)));
-        euler.y = Mathf.Asin(2 * (q.w * q.y - q.z * q.x));
-        euler.z = Mathf.Atan2(2 * (q.w * q.z + q.x * q.y), 1 - 2 * (Mathf.Pow(q.y, 2) + Mathf.Pow(q.z, 2)));
-        return euler;
-    }
-
-    public Quaternion eulerToQuaternion(Vector3 e) {
-        Quaternion q = new Quaternion();
-        q.w = Mathf.Cos(e.x / 2) * Mathf.Cos(e.y / 2) * Mathf.Cos(e.z / 2) + Mathf.Sin(e.x / 2) * Mathf.Sin(e.y / 2) * Mathf.Sin(e.z / 2);
-        q.x = Mathf.Sin(e.x / 2) * Mathf.Cos(e.y / 2) * Mathf.Cos(e.z / 2) - Mathf.Cos(e.x / 2) * Mathf.Sin(e.y / 2) * Mathf.Sin(e.z / 2);
-        q.y = Mathf.Cos(e.x / 2) * Mathf.Sin(e.y / 2) * Mathf.Cos(e.z / 2) + Mathf.Sin(e.x / 2) * Mathf.Cos(e.y / 2) * Mathf.Sin(e.z / 2);
-        q.z = Mathf.Cos(e.x / 2) * Mathf.Cos(e.y / 2) * Mathf.Sin(e.z / 2) - Mathf.Sin(e.x / 2) * Mathf.Sin(e.y / 2) * Mathf.Cos(e.z / 2);
-        return q;
     }
 }

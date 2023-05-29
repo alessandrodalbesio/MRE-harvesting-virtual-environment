@@ -2,29 +2,25 @@
 using System.Collections;
 using System.Collections.Generic;
 using System.IO;
-using System;
 using UnityEngine;
 using UnityEngine.Networking;
+using System;
+using WebSocketSharp;
 
 class DataSynchronizer : MonoBehaviour {
     /* Storage manager */
     private StorageManager storageManager;
     
     /* Variable used by the sceneLoader to see if the synchronizer is busy */
-    private bool isBusy = false;
+    private int isBusy = 0; /* Counter used to be sure that all the started coroutine have finished */
     public bool IsBusy {
-        get { return this.isBusy; }
+        get { return this.isBusy > 0; }
     }
 
-    /* Variable used by the sceneLoader to get the active model info */
-    private string activeModelID;
-    public string ActiveModelID {
-        get { return this.activeModelID; }
-    }
-    private string activeTextureID;
-    public string ActiveTextureID {
-        get { return this.activeTextureID; }
-    }
+    /* Variables used for connecting to the websocket database */
+    private WebSocket ws;
+    private string[] database_refresh_websocket_types = new string[] { "new-model", "new-texture", "delete-model", "delete-texture" };
+    private bool scheduleRefresh = false;
 
     /* Methods */
     void Awake() {
@@ -32,6 +28,41 @@ class DataSynchronizer : MonoBehaviour {
         this.SyncLocalDatabase();
     }
     
+    void Start() {
+        ws = new WebSocket(Parameters.WEBSOCKET_SERVER_URL);
+
+        //ws.OnOpen += (sender, e) => {
+        //    Debug.Log("WebSocket connection open DataSyncronizer");
+        //};
+
+        //ws.OnClose += (sender, e) => {
+        //    Debug.Log("WebSocket connection closed");
+        //};
+
+        ws.OnMessage += (sender, e) => {
+            if (Array.Exists(database_refresh_websocket_types, element => e.Data.Contains(element)))
+                this.scheduleRefresh = true;
+        };
+
+        //ws.OnError += (sender, e) => {
+        //    Debug.Log("WebSocket error: " + e.Message);
+        //};
+
+        ws.Connect();
+    } 
+
+    public void Update() {
+        if (this.scheduleRefresh) {
+            this.scheduleRefresh = false;
+            this.SyncLocalDatabase();
+        }
+    }
+
+    public void OnDestroy() {
+        if (ws != null) 
+            ws.Close();
+    }
+
     private void compareDataAndDownload(List<Model> modelsFromServer, List<Model> modelsSavedLocally) {
         /* Syncronize the local database with the local storage (verify that no models has been removed from the local storage) */
         for(int i = 0; i != modelsSavedLocally.Count ; i++) {
@@ -136,7 +167,6 @@ class DataSynchronizer : MonoBehaviour {
 
             if (numberOfBrackets == 0 && startingPosition != 0) {
                 string modelString = str.Substring(startingPosition, i - startingPosition + 1);
-                Debug.Log(modelString);
                 modelsSavedIntoServer.Add(JsonUtility.FromJson<Model>(modelString));
                 startingPosition = 0;
             }
@@ -147,6 +177,7 @@ class DataSynchronizer : MonoBehaviour {
     }
 
     private IEnumerator _SyncLocalDatabase() {
+        isBusy++;
         using (UnityWebRequest webRequest = UnityWebRequest.Get(Parameters.MODELS_INFO_ENDPOINT)) {
             /* Request and wait for the desired page. */
             yield return webRequest.SendWebRequest();
@@ -164,15 +195,15 @@ class DataSynchronizer : MonoBehaviour {
                     break;
             }
         }
+        isBusy--;
     }
 
     private void SyncLocalDatabase() {
-        this.isBusy = true;
         StartCoroutine(_SyncLocalDatabase());
-        this.isBusy = false;
     }
 
     private IEnumerator _save(Model modelToSave) {
+        isBusy++;
         /* Create all the needed directories */
         if(Directory.Exists(modelToSave.getParentDirectory()))
             Directory.Delete(modelToSave.getParentDirectory(), true);
@@ -189,6 +220,7 @@ class DataSynchronizer : MonoBehaviour {
             foreach (ModelTexture textureToDownload in modelToSave.textures)
                 save(textureToDownload);
         }
+        isBusy--;
     }
 
     private void save(Model model) {
@@ -196,7 +228,7 @@ class DataSynchronizer : MonoBehaviour {
     }
 
     private IEnumerator _save(ModelTexture texture) {
-        Debug.Log(texture.getDownloadUrl());
+        isBusy++;
         /* Download the texture */
         var webRequest = new UnityWebRequest(texture.getDownloadUrl(), UnityWebRequest.kHttpVerbGET);
         webRequest.downloadHandler = new DownloadHandlerFile(texture.getFile());
@@ -205,6 +237,8 @@ class DataSynchronizer : MonoBehaviour {
         /* Handle the result */
         if (webRequest.result == UnityWebRequest.Result.Success)
             this.storageManager.saveTexture(texture);
+        
+        isBusy--;
     }
 
     private void save(ModelTexture textureToDownload) {
@@ -236,41 +270,4 @@ class DataSynchronizer : MonoBehaviour {
         }
     }
 
-    /* Pooling to verify if there are new updates */
-    private IEnumerator _checkForNewUpdate() {
-        using (UnityWebRequest webRequest = UnityWebRequest.Get(Parameters.WS_API_NEED_LOCAL_STORAGE_REFRESH_ENDPOINT)) {
-            /* Request and wait for the desired page. */
-            yield return webRequest.SendWebRequest();
-
-            switch (webRequest.result) {
-                case UnityWebRequest.Result.ConnectionError:
-                case UnityWebRequest.Result.DataProcessingError:
-                case UnityWebRequest.Result.ProtocolError:
-                    Debug.LogError(webRequest.error);
-                    break;
-                case UnityWebRequest.Result.Success:
-                    bool newContents = webRequest.downloadHandler.text.Split(":")[1].Replace("}", "").Replace("\n", "") == "true";
-                    if (newContents)
-                        this.SyncLocalDatabase();
-                    break;
-            }
-        }
-    }
-
-
-    /* Function used by websocket.cs to set the active model */
-    public void setActiveModelFromServerResponse(string serverResponse) {
-        serverResponse = serverResponse.Replace("\"", "").Replace("{", "").Replace("}", "").Replace("\n", "");
-        this.activeModelID = serverResponse.Split(",")[0].Split(":")[1];
-        this.activeTextureID = serverResponse.Split(",")[1].Split(":")[1];        
-    }
-
-    public void refreshDatabase() {
-        this.SyncLocalDatabase();
-    }
-
-    public void unsetActiveModelFromServer() {
-        this.activeModelID = null;
-        this.activeTextureID = null;
-    }
 }

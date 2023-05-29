@@ -1,10 +1,31 @@
 /* This script at each iteration check that the position of the trackers is well represented in the simulation */
 using System.Collections.Generic;
 using UnityEngine;
-using Unity.Robotics.ROSTCPConnector;
-using ROSMessageType = RosMessageTypes.Std.EmptyMsg; // Need to understand the message type
+using WebSocketSharp;
 
 public class TrackersSynchronizer : MonoBehaviour {
+    /* Used to de-serialize the data from the websocket server */
+    [System.Serializable]
+    protected class Tracker {
+        public Vector3 position {
+            get {
+                return new Vector3(-pos[0], pos[1], pos[2]);
+            }
+        }
+        public List<float> pos;
+        public int id;
+        public float residual;
+        public string name {
+            get {
+                return "tracker" + id;
+            }
+        }
+    }
+
+    /* General settings variables */
+    private bool isReady = false;
+    public bool IsReady { get { return isReady; } }
+
     /* Trackers settings */
     public GameObject trackersPrefab;
     public Material trackersMaterial;
@@ -15,32 +36,77 @@ public class TrackersSynchronizer : MonoBehaviour {
     private Vector3 refVector;
     public Vector3 offsetToP1 = new Vector3(0,-0.1f,0); // To measure
 
-    /* Trackers */
-    private Dictionary<string,Vector3> tableTrackers = new Dictionary<string, Vector3>(); // This is generated from the holder trackers
-    public Dictionary<string,Vector3> TableTrackers { get { return tableTrackers; } }
-    
-    private Dictionary<string,Vector3> holderTrackers = new Dictionary<string, Vector3>(); /* Trackers relative to the structure */
-    public Dictionary<string,Vector3> HolderTrackers { get { return holderTrackers; } }
-    
-    private Dictionary<string,Vector3> headsetTrackers = new Dictionary<string, Vector3>(); /* Trackers relative to the headset to be able to synchronize the position of the headset with the position of the system */
-    public Dictionary<string,Vector3> HeadsetTrackers { get { return headsetTrackers; } }
-    
-    private Dictionary<string,Vector3> objectTrackers = new Dictionary<string, Vector3>(); /* Trackers relative to the object (the raspberry) */
-    public Dictionary<string,Vector3> ObjectTrackers { get { return objectTrackers; } }
+    /* Trackers positions */
+    private Dictionary<string,Vector3> tableTrackers = new Dictionary<string,Vector3>();
+    private Dictionary<string,Vector3> holderTrackers = new Dictionary<string,Vector3>();
+    private Dictionary<string,Vector3> headsetTrackers = new Dictionary<string,Vector3>();
+    private Dictionary<string,Vector3> objectTrackers = new Dictionary<string,Vector3>();
 
-    private bool isReady = false;
-    public bool IsReady { get { return isReady; } }
+    private List<Tracker> trackers = new List<Tracker>();
 
-    /* Start method */
+    /* Websocket management */
+    private WebSocket ws;
+
     void Start() {
-        /* Generate the parent gameobject */
+        /* Generate the trackers parent */
         trackersParent = new GameObject("Trackers");
         trackersParent.name = "Trackers";
 
-        /* Set the connection with the ROS server */
-        //ROSConnection.GetOrCreateInstance().Subscribe<ROSMessageType>(Parameters.ROS_PUB_NAME, refreshTrackers);
+        /* Manage the websocket */
+        ws = new WebSocket(Parameters.WEBSOCKET_SERVER_URL);
+
+        ws.OnOpen += (sender, e) => {
+            ws.Send("{\"type\": \"join-optitrack-room\"}");
+        };
+
+        ws.OnMessage += (sender, e) => {
+            if (e.Data.Contains("optitrack-data"))
+                this.convertDataFromServer(e.Data);
+        };
+
+        ws.Connect();
     }
     
+    private void convertDataFromServer(string jsonData) {
+        jsonData = jsonData.Replace("\\", "");
+        int numberOfCurlyBrackets = 0, numberOfSquaredBrackets = 0;
+        int initialIndex = 0;
+        List<Tracker> trackers = new List<Tracker>();
+        for (int x = jsonData.IndexOf("["); ; x++) {
+            if (jsonData[x] == '[')
+                numberOfSquaredBrackets++;
+            if (jsonData[x] == ']') {
+                numberOfSquaredBrackets--;
+                if (numberOfSquaredBrackets == 0)
+                    break;
+            }
+            if (jsonData[x] == '{') {
+                if (numberOfCurlyBrackets == 0)
+                    initialIndex = x;
+                numberOfCurlyBrackets++;
+            }
+            if (jsonData[x] == '}') {
+                numberOfCurlyBrackets--;
+                if (numberOfCurlyBrackets == 0) {
+                    string json = jsonData.Substring(initialIndex, x - initialIndex + 1);
+                    trackers.Add(JsonUtility.FromJson<Tracker>(json));
+                }
+            }
+        }
+        makeTrackerDataCompatible(trackers);
+        this.isReady = true;
+    }
+
+    public void Update() {
+        if (this.isReady)
+            this.updateTrackersInSimulation();
+    }
+
+    private void makeTrackerDataCompatible(List<Tracker> trackers) {
+        this.trackers = trackers;
+    }
+
+
     /* Calibrate the ref vector */
     public void calibrateRefVector() {
         /* Compute the reference points */
@@ -77,17 +143,19 @@ public class TrackersSynchronizer : MonoBehaviour {
     /* Update the trackers positions in the simulation */
     public void updateTrackersInSimulation() {
         if (!showTrackersInScene) return;
-
-        foreach (KeyValuePair<string,Vector3> tracker in tableTrackers) {
-            GameObject trackerObject = GameObject.Find(tracker.Key);
+        for (int x = 0; ; x++) {
+            Tracker tracker = trackers[x];
+            GameObject trackerObject = GameObject.Find(tracker.name);
             if (trackerObject == null) {
-                trackerObject = Instantiate(trackersPrefab, tracker.Value, Quaternion.identity);
-                trackerObject.name = tracker.Key;
+                trackerObject = Instantiate(trackersPrefab, tracker.position, Quaternion.identity);
+                trackerObject.name = tracker.name;
                 trackerObject.transform.parent = trackersParent.transform;
                 trackerObject.GetComponent<MeshRenderer>().material = trackersMaterial;
             }
             else
-                trackerObject.transform.position = tracker.Value;
+                trackerObject.transform.position = tracker.position;
+            
+            if (x == trackers.Count - 1) break;
         }
         foreach (KeyValuePair<string,Vector3> tracker in holderTrackers) {
             GameObject trackerObject = GameObject.Find(tracker.Key);
@@ -124,28 +192,9 @@ public class TrackersSynchronizer : MonoBehaviour {
         }
     }
 
-    /* Refresh the trackers positions */
-    public void refreshTrackers() { //ROSMessageType serverResponse) {
-        /* Estimate the various trackers positions */
-        // TO IMPLEMENT
-
-        /* Table trackers */
-        tableTrackers.Add("front-left", new Vector3(0,1.0f,0));
-        tableTrackers.Add("back-right", new Vector3(1.0f,1.0f,0.5f));
-        
-        /* Holder trackers */
-        holderTrackers.Add("front-left-low", new Vector3(0.3f,1.05f,0));
-        holderTrackers.Add("back-right-low", new Vector3(0.7f,1.05f,0.5f));
-        holderTrackers.Add("rope-attach-point", new Vector3(0.5f,1.55f,0));
-        Vector3 topCenterFrontTracker = holderTrackers["rope-attach-point"] + new Vector3(0,0.5f,0);
-        holderTrackers.Add("top-center-front", topCenterFrontTracker);
-        Vector3 topCenterBackTracker = new Vector3(holderTrackers["rope-attach-point"].x,holderTrackers["rope-attach-point"].y + 0.5f,holderTrackers["back-right-low"].z - 0.1f);
-        holderTrackers.Add("top-center-back", topCenterBackTracker);
-
-        /* Calibrate the reference vector */
-        if (refVector == null) calibrateRefVector();
-
-        /* Update the trackers in the simulation */
-        updateTrackersInSimulation();
+    void OnDestroy() {
+        if (this.ws != null)
+            ws.Close();
     }
+
 }
