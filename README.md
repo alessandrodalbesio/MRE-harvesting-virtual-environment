@@ -15,6 +15,7 @@ To install this Unity project follow these steps:
 6. Go to File > Build Settings
 7. Go to "Android" and click on "Switch Platform"
 8. If in the bottom right of the unity windows the Oculus icon has some dot on it click on it and then click to "Apply all"
+9. Modify the parameters in the file <code>Scripts/Parameters.cs</code> according to your needs. At the moment the synchronization of the parameters is not automatic as in the case of the other components of the system. <br>
 
 *Note*: The Oculus Integration is very helpfull to manage the Oculus Quest (It's possible to use the Oculus Quest without it but it's much simpler to use it). <br>
 If you see lots of warnings in the console, don't worry, they are all related to the Oculus Integration and they don't affect the project.
@@ -51,6 +52,17 @@ Below you can find a structure of the code in the folder <code>Scripts</code>
 - <code>StorageManager.cs</code>: This file contains all the function to store and retrieve the data from the storage. This file might also be used to implement a database (but it's not implemented yet because I had problems compatibility issues between SQLite and the Oculus).
 - <code>Texture</code>: This file contains the class Texture that is used to store all the information relative to a texture.
 - <code>TrackerSynchronizer.cs</code>: This file manage the synchronization of tracker data from the Optitrack (through the websocket server) to the client.
+
+## Still to do
+Here a list of the things that still need to be done (in order from the most important):
+-  Do a calibration system to be sure that the virtual environment is aligned with the real one
+-  Create the scene from the trackers
+-  Add a reconnection system if the connection to the server is lost
+-  Synchronize the options in the Virtual Environment automatically with the server (as the user interface does)
+-  Synchronize the options in the Virtual Environment automatically with the Optitrack Bridge (IDs and names)
+-  Manage the situation in which a user has disconnected from the user interface but the virtual environment is still running
+-  Add the possibility of selecting the model and texture also from the Oculus Quest
+The two main files that should be modified are <code>TrackerSynchronizer.cs</code> and <code>SceneLoader.cs</code>. <br>
 
 ## Used versions
 The following versions have been used:
