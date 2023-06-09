@@ -3,12 +3,13 @@ using System.Collections.Generic;
 using UnityEngine;
 using Dummiesman;
 using WebSocketSharp;
+using System.IO;
 
 class SceneLoader : MonoBehaviour {
 
     /* Real object parameters */
     public string realObjectNameModel = "calyx real"; /* This is the sub object that should be used as a reference for making the resizing */
-    public Vector3 realObjectDimensions = new Vector3(0.05f,0.05f,0.05f); /* Real size of the object in cm */
+    public Vector3 realObjectDimensions = new Vector3(0.21f,0.19f,0.21f); /* Real size of the object in cm */
 
     /* Table parameters */
     public Material table_material;
@@ -70,13 +71,13 @@ class SceneLoader : MonoBehaviour {
         ws.Connect();
     } 
 
-    void Update() {
+    void FixedUpdate() {
         /* Check if the trackers are ready */
         if(this.GetComponent<TrackersSynchronizer>().IsReady == false)
             return;
 
         /* Refresh the scene */
-        // this.refreshScene();
+        this.refreshScene();
 
         /* Manage the active model */
         if (this.scheduledActiveModelRemoval == true || this.scheduledAtiveModelCreation == true) {
@@ -87,30 +88,30 @@ class SceneLoader : MonoBehaviour {
         }
 
         if (this.scheduledAtiveModelCreation == true && this.GetComponent<DataSynchronizer>().IsBusy == false) {
-            Debug.Log(this.GetComponent<DataSynchronizer>().IsBusy);
             this.scheduledAtiveModelCreation = false;
+            Destroy(activeModel);
             this.createModelInScene(this.activeModelID, this.activeTextureID);
         }
     }   
 
     private void createTableInScene() {
         /* Get the table trackers */
-        Dictionary<string,Vector3> tableTrackers = new Dictionary<string, Vector3>();
+        /*Dictionary<string,Vector3> tableTrackers = new Dictionary<string, Vector3>();
 
         /* Get the values of the trackers */
-        Vector3 FrontLeftTableTracker = tableTrackers["front-left"];
+        /*Vector3 FrontLeftTableTracker = tableTrackers["front-left"];
         Vector3 BackRightTableTracker = tableTrackers["back-right"];
 
         /* Compute the center of the table top (used to construct other components) */
-        tableTopCenterPosition = new Vector3((FrontLeftTableTracker.x + BackRightTableTracker.x)/2, FrontLeftTableTracker.y, (FrontLeftTableTracker.z + BackRightTableTracker.z)/2);
+        /*tableTopCenterPosition = new Vector3((FrontLeftTableTracker.x + BackRightTableTracker.x)/2, FrontLeftTableTracker.y, (FrontLeftTableTracker.z + BackRightTableTracker.z)/2);
 
         /* Create a GameObject that will contain the table top and the legs */
-        GameObject table = new GameObject();
+        /*GameObject table = new GameObject();
         table.name = "table";
         table.transform.parent = this.gameObject.transform;
 
         /* Define the position of the legs */
-        Dictionary<string,Vector3[]> tableLegs = new Dictionary<string, Vector3[]>();
+        /*Dictionary<string,Vector3[]> tableLegs = new Dictionary<string, Vector3[]>();
 
         Vector3 flLegPos = new Vector3(FrontLeftTableTracker.x + TABLE_LEG_DIMENSION/2, FrontLeftTableTracker.y / 2, FrontLeftTableTracker.z + TABLE_LEG_DIMENSION/2);
         Vector3 flLegSize = new Vector3(Mathf.Abs(TABLE_LEG_DIMENSION), Mathf.Abs(FrontLeftTableTracker.y), TABLE_LEG_DIMENSION);
@@ -129,7 +130,7 @@ class SceneLoader : MonoBehaviour {
         tableLegs.Add("back-right-table-leg", new Vector3[] {brLegPos, brLegSize});
 
         /* Create the legs into scene */
-        foreach (KeyValuePair<string,Vector3[]> leg in tableLegs) {
+        /*foreach (KeyValuePair<string,Vector3[]> leg in tableLegs) {
             GameObject legObj = GameObject.CreatePrimitive(PrimitiveType.Cube);
             legObj.name = leg.Key;
             legObj.transform.parent = table.transform;
@@ -139,34 +140,32 @@ class SceneLoader : MonoBehaviour {
         }
 
         /* Create the table top */
-        Vector3 tableTopPos = new Vector3((BackRightTableTracker.x + FrontLeftTableTracker.x) / 2, FrontLeftTableTracker.y - TABLE_TOP_HEIGHT/2, (BackRightTableTracker.z + FrontLeftTableTracker.z) / 2);
+        /*Vector3 tableTopPos = new Vector3((BackRightTableTracker.x + FrontLeftTableTracker.x) / 2, FrontLeftTableTracker.y - TABLE_TOP_HEIGHT/2, (BackRightTableTracker.z + FrontLeftTableTracker.z) / 2);
         Vector3 tableTopSize = new Vector3(Mathf.Abs(BackRightTableTracker.x - FrontLeftTableTracker.x), TABLE_TOP_HEIGHT, Mathf.Abs(BackRightTableTracker.z - FrontLeftTableTracker.z));
         GameObject tableTop = GameObject.CreatePrimitive(PrimitiveType.Cube);
         tableTop.name = "table-top";
         tableTop.transform.position = tableTopPos;
         tableTop.transform.localScale = tableTopSize;
         tableTop.transform.parent = table.transform;
-        tableTop.GetComponent<Renderer>().material = table_material;
+        tableTop.GetComponent<Renderer>().material = table_material;*/
     }
 
     private void createHolderInScene() {
         /* Get the holder trackers */
-        Dictionary<string,Vector3> holderTrackers = new Dictionary<string, Vector3>();
+        //Dictionary<string,Vector3> holderTrackers = new Dictionary<string, Vector3>();
 
         /* Define global variables */
-        Vector3 holderFrontLeftLow = holderTrackers["front-left-low"];
-        Vector3 holderBackRightLow = holderTrackers["back-right-low"];
-        Vector3 holderTopCenterFront = holderTrackers["top-center-front"];
-        Vector3 holderTopCenterBack = holderTrackers["top-center-back"];
-        Vector3 ropeAttachPoint = holderTrackers["rope-attach-point"];
+        //Vector3 leftBackTracker = holderTrackers["left"];
+        //Vector3 righFrontTracker = holderTrackers["right"];
+        //Vector3 topTracker = holderTrackers["top"];
 
         /* Create the gameobject holder */
-        GameObject holder = new GameObject();
-        holder.name = "Holder";
-        holder.transform.parent = this.gameObject.transform;
+        //GameObject holder = new GameObject();
+        //holder.name = "Holder";
+        //holder.transform.parent = this.gameObject.transform;
 
         /* Create the holder base */
-        Vector3 holderBaseCenterPos = new Vector3((holderFrontLeftLow.x + holderBackRightLow.x)/2, (holderFrontLeftLow.y + tableTopCenterPosition.y)/2, (holderFrontLeftLow.z + holderBackRightLow.z)/2);
+        /*Vector3 holderBaseCenterPos = new Vector3((holderFrontLeftLow.x + holderBackRightLow.x)/2, (holderFrontLeftLow.y + tableTopCenterPosition.y)/2, (holderFrontLeftLow.z + holderBackRightLow.z)/2);
         Vector3 holderBaseSize = new Vector3(Mathf.Abs(holderFrontLeftLow.x - holderBackRightLow.x), Mathf.Abs(holderFrontLeftLow.y - tableTopCenterPosition.y), Mathf.Abs(holderBackRightLow.z - holderFrontLeftLow.z));
         GameObject holderBase = GameObject.CreatePrimitive(PrimitiveType.Cube);
         holderBase.name = "holder-base";
@@ -177,7 +176,7 @@ class SceneLoader : MonoBehaviour {
         float holderHeight = Mathf.Abs(holderTopCenterFront.y - ropeAttachPoint.y);
 
         /* Create the holder arm */
-        Vector3 holderArmPos = new Vector3(holderTopCenterBack.x, (holderFrontLeftLow.y + holderTopCenterFront.y) / 2, holderTopCenterBack.z - holderHeight/2);
+        /*Vector3 holderArmPos = new Vector3(holderTopCenterBack.x, (holderFrontLeftLow.y + holderTopCenterFront.y) / 2, holderTopCenterBack.z - holderHeight/2);
         Vector3 holderArmSize = new Vector3(Mathf.Abs(holderHeight), Mathf.Abs(holderTopCenterBack.y - holderBackRightLow.y), Mathf.Abs(holderHeight));
         GameObject holderArm = GameObject.CreatePrimitive(PrimitiveType.Cube);
         holderArm.name = "holder-arm-1";
@@ -187,17 +186,21 @@ class SceneLoader : MonoBehaviour {
         holderArm.GetComponent<Renderer>().material = holder_material;
 
         /* Create the second holder arm */
-        Vector3 holderArm2Pos = new Vector3(holderTopCenterFront.x, (ropeAttachPoint.y + holderTopCenterFront.y) / 2, (holderTopCenterFront.z + holderTopCenterBack.z )/2);
+        /*Vector3 holderArm2Pos = new Vector3(holderTopCenterFront.x, (ropeAttachPoint.y + holderTopCenterFront.y) / 2, (holderTopCenterFront.z + holderTopCenterBack.z )/2);
         Vector3 holderArm2Size = new Vector3(Mathf.Abs(holderHeight), Mathf.Abs(holderHeight), Mathf.Abs(holderTopCenterFront.z - holderTopCenterBack.z));
         GameObject holderArm2 = GameObject.CreatePrimitive(PrimitiveType.Cube);
         holderArm2.name = "holder-arm-2";
         holderArm2.transform.parent = holder.transform;
         holderArm2.transform.position = holderArm2Pos;
         holderArm2.transform.localScale = holderArm2Size;
-        holderArm2.GetComponent<Renderer>().material = holder_material;
+        holderArm2.GetComponent<Renderer>().material = holder_material;*/
     }
     
     private void createModelInScene(string IDModel, string IDTexture) {
+        if (activeModel != null) {
+            Destroy(activeModel);
+        }
+
         /* Get the variables needed to get the active model */
         StorageManager storageManager = new StorageManager();
         OBJLoader objLoader = new OBJLoader();
@@ -226,6 +229,12 @@ class SceneLoader : MonoBehaviour {
                     child.GetComponent<Renderer>().material.color = newColor;
                 }
             }
+        } else {
+            string texturePath = texture.getFile();
+            Texture2D newTexture = ImageLoader.LoadTexture(texturePath);
+            foreach (Transform child in activeModel.transform) {
+                child.GetComponent<Renderer>().material.mainTexture = newTexture;
+            }
         }
     }
 
@@ -244,10 +253,10 @@ class SceneLoader : MonoBehaviour {
             return;
 
         /* Create the table */
-        this.createTableInScene();
+        //this.createTableInScene();
 
         /* Create the holder */
-        this.createHolderInScene();
+        //this.createHolderInScene();
 
         this.isSceneReady = true;
 

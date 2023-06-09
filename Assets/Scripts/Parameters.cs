@@ -16,10 +16,11 @@ class Parameters : MonoBehaviour {
     public const string LOCAL_SAVE_PATH = "/Models/";
 
 
-
-    /* Parameters for scene loading */
-    
-
+    /* Parameter for tracker synchronization */
+    public const string RASPBERRY_REFERENCE_NAME = "RASPBERRY";
+    public const string HOLDER_REFERENCE_NAME = "HOLDER";
+    public const int RASPBERRY_ID = 101;
+    public const int HOLDER_ID = 100;
 
     /* General constants */
     public const bool DEBUG_MODEL = true;

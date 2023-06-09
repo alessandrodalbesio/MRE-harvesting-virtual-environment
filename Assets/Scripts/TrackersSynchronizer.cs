@@ -4,24 +4,6 @@ using UnityEngine;
 using WebSocketSharp;
 
 public class TrackersSynchronizer : MonoBehaviour {
-    /* Used to de-serialize the data from the websocket server */
-    [System.Serializable]
-    protected class Tracker {
-        public Vector3 position {
-            get {
-                return new Vector3(-pos[0], pos[1], pos[2]);
-            }
-        }
-        public List<float> pos;
-        public int id;
-        public float residual;
-        public string name {
-            get {
-                return "tracker" + id;
-            }
-        }
-    }
-
     /* General settings variables */
     private bool isReady = false;
     public bool IsReady { get { return isReady; } }
@@ -32,17 +14,22 @@ public class TrackersSynchronizer : MonoBehaviour {
     public bool showTrackersInScene = true;
     private GameObject trackersParent;
 
-    /* Informations to compute the center of the object */
-    private Vector3 refVector;
-    public Vector3 offsetToP1 = new Vector3(0,-0.1f,0); // To measure
+    /* Rigidbody settings */
+    public GameObject rigidbodiesPrefab;
+    public Material rigidbodiesMaterial;
+    public bool showRigidbodiesInScene = true;
+    private GameObject rigidbodiesParent;
 
     /* Trackers positions */
-    private Dictionary<string,Vector3> tableTrackers = new Dictionary<string,Vector3>();
     private Dictionary<string,Vector3> holderTrackers = new Dictionary<string,Vector3>();
     private Dictionary<string,Vector3> headsetTrackers = new Dictionary<string,Vector3>();
     private Dictionary<string,Vector3> objectTrackers = new Dictionary<string,Vector3>();
 
-    private List<Tracker> trackers = new List<Tracker>();
+    private List<TrackerOptitrack> trackers = new List<TrackerOptitrack>();
+    private List<RigidbodyOptitrack> rigidbodies = new List<RigidbodyOptitrack>();
+
+    private RigidbodyOptitrack objectTracker;
+    private Vector3 centerOffset = new Vector3(0f, -0.025f, 0f);
 
     /* Websocket management */
     private WebSocket ws;
@@ -51,6 +38,9 @@ public class TrackersSynchronizer : MonoBehaviour {
         /* Generate the trackers parent */
         trackersParent = new GameObject("Trackers");
         trackersParent.name = "Trackers";
+
+        rigidbodiesParent = new GameObject("Rigidbodies");
+        rigidbodiesParent.name = "Rigidbodies";
 
         /* Manage the websocket */
         ws = new WebSocket(Parameters.WEBSOCKET_SERVER_URL);
@@ -68,10 +58,12 @@ public class TrackersSynchronizer : MonoBehaviour {
     }
     
     private void convertDataFromServer(string jsonData) {
+        /* Get the data from the server and make them compatible with the C# code */
         jsonData = jsonData.Replace("\\", "");
         int numberOfCurlyBrackets = 0, numberOfSquaredBrackets = 0;
         int initialIndex = 0;
-        List<Tracker> trackers = new List<Tracker>();
+        List<TrackerOptitrack> trackers = new List<TrackerOptitrack>();
+        List<RigidbodyOptitrack> rigidbodies = new List<RigidbodyOptitrack>();
         for (int x = jsonData.IndexOf("["); ; x++) {
             if (jsonData[x] == '[')
                 numberOfSquaredBrackets++;
@@ -89,106 +81,95 @@ public class TrackersSynchronizer : MonoBehaviour {
                 numberOfCurlyBrackets--;
                 if (numberOfCurlyBrackets == 0) {
                     string json = jsonData.Substring(initialIndex, x - initialIndex + 1);
-                    trackers.Add(JsonUtility.FromJson<Tracker>(json));
+                    if (json.Contains("marker"))
+                        trackers.Add(JsonUtility.FromJson<TrackerOptitrack>(json));
+                    else if (json.Contains("rigidBody")) {
+                        RigidbodyOptitrack rigidbody = JsonUtility.FromJson<RigidbodyOptitrack>(json);
+                        if (rigidbody.ID == Parameters.RASPBERRY_ID.ToString())
+                            this.objectTracker = rigidbody;
+                        rigidbodies.Add(JsonUtility.FromJson<RigidbodyOptitrack>(json));
+                    }
                 }
             }
         }
-        makeTrackerDataCompatible(trackers);
+        this.trackers = trackers;
+        this.rigidbodies = rigidbodies;
+        /* Divide the trackers into the various dictionaries */
+        // this.makeTrackersCompatible(trackers);
+
         this.isReady = true;
     }
+
+    /*private void makeTrackersCompatible(List<Tracker> trackers) {
+        List<Tracker> holderTrackers = new List<Tracker>();
+        // Divide the trackers based on the object
+        foreach (Tracker tracker in trackers) {
+            if (tracker.object == Parameters.HOLDER_REFERENCE_NAME)
+                holderTrackers.Add(tracker);
+        }
+
+        // Set the trackers into the dictionaries
+        // Get the tracker in holderTrackers with the highest y position
+        int indexHighestTracker = 0;
+        for(int x = 0; x < holderTrackers.Count; x++) {
+            if (holderTrackers[x].y > holderTrackers[indexHighestTracker].y)
+                indexHighestTracker = x;
+        }
+        Tracker topTracker = holderTrackers[indexHighestTracker];
+        holderTrackers.RemoveAt(indexHighestTracker);
+        // Order the remaining trackers in a clockwise order
+        List<Tracker> orderedTrackers = new List<Tracker>();
+        orderedTrackers.Add(topTracker);
+        while (holderTrackers.Count > 0) {
+            int indexTracker = 0;
+            for (int x = 0; x < holderTrackers.Count; x++) {
+                if (holderTrackers[x].x > holderTrackers[indexTracker].x)
+                    indexTracker = x;
+            }
+            orderedTrackers.Add(holderTrackers[indexTracker]);
+            holderTrackers.RemoveAt(indexTracker);
+        }
+    }*/
 
     public void Update() {
         if (this.isReady)
             this.updateTrackersInSimulation();
     }
 
-    private void makeTrackerDataCompatible(List<Tracker> trackers) {
-        this.trackers = trackers;
-    }
-
-
-    /* Calibrate the ref vector */
-    public void calibrateRefVector() {
-        /* Compute the reference points */
-        Vector3 refP1 = (objectTrackers["right"] + objectTrackers["left"]) / 2;
-        Vector3 refP2 = objectTrackers["top"];
-        refVector = refP2 - refP1;
-    }
-
-    /* Get object position */
     public Vector3 getObjectPosition() {
-        Vector3 measuredP1 = (objectTrackers["right"] + objectTrackers["left"]) / 2;
-
-        Quaternion rotation = this.getObjectRotation();
-
-        /* Compute the object center position */
-        Vector3 objectCenterPosition = measuredP1 + rotation * offsetToP1;
-        return objectCenterPosition;
+        return objectTracker.position + centerOffset;
     }
 
-    /* Get object rotation */
     public Quaternion getObjectRotation() {
-        /* Compute the measured vector */
-        Vector3 measuredP1 = (objectTrackers["right"] + objectTrackers["left"]) / 2;
-        Vector3 measuredP2 = objectTrackers["top"];
-        Vector3 measuredVector = measuredP2 - measuredP1;
-
-        /* Compute the rotational matrix of the vector to respect to the refVector */
-        float angle = Vector3.SignedAngle(refVector, measuredVector, Vector3.forward);
-        Quaternion rotation = Quaternion.AngleAxis(angle, Vector3.forward);
-
-        return rotation;
+        return objectTracker.rotation;
     }
 
     /* Update the trackers positions in the simulation */
     public void updateTrackersInSimulation() {
         if (!showTrackersInScene) return;
-        for (int x = 0; ; x++) {
-            Tracker tracker = trackers[x];
+
+        foreach (RigidbodyOptitrack rigidbody in rigidbodies) {
+            GameObject rigidbodyObject = GameObject.Find(rigidbody.name);
+            if (rigidbodyObject == null) {
+                rigidbodyObject = Instantiate(rigidbodiesPrefab, rigidbody.position, rigidbody.rotation);
+                rigidbodyObject.name = rigidbody.name;
+                rigidbodyObject.transform.parent = rigidbodiesParent.transform;
+                rigidbodyObject.GetComponent<MeshRenderer>().material = rigidbodiesMaterial;
+            } else {
+                rigidbodyObject.transform.position = rigidbody.position;
+            }
+        }
+
+        foreach (TrackerOptitrack tracker in trackers) {
             GameObject trackerObject = GameObject.Find(tracker.name);
             if (trackerObject == null) {
                 trackerObject = Instantiate(trackersPrefab, tracker.position, Quaternion.identity);
                 trackerObject.name = tracker.name;
                 trackerObject.transform.parent = trackersParent.transform;
                 trackerObject.GetComponent<MeshRenderer>().material = trackersMaterial;
-            }
-            else
+            } else {
                 trackerObject.transform.position = tracker.position;
-            
-            if (x == trackers.Count - 1) break;
-        }
-        foreach (KeyValuePair<string,Vector3> tracker in holderTrackers) {
-            GameObject trackerObject = GameObject.Find(tracker.Key);
-            if (trackerObject == null) {
-                trackerObject = Instantiate(trackersPrefab, tracker.Value, Quaternion.identity);
-                trackerObject.name = tracker.Key;
-                trackerObject.transform.parent = trackersParent.transform;
-                trackerObject.GetComponent<MeshRenderer>().material = trackersMaterial;
             }
-            else
-                trackerObject.transform.position = tracker.Value;
-        }
-        foreach (KeyValuePair<string,Vector3> tracker in headsetTrackers) {
-            GameObject trackerObject = GameObject.Find(tracker.Key);
-            if (trackerObject == null) {
-                trackerObject = Instantiate(trackersPrefab, tracker.Value, Quaternion.identity);
-                trackerObject.name = tracker.Key;
-                trackerObject.transform.parent = trackersParent.transform;
-                trackerObject.GetComponent<MeshRenderer>().material = trackersMaterial;
-            }
-            else
-                trackerObject.transform.position = tracker.Value;
-        }
-        foreach (KeyValuePair<string,Vector3> tracker in objectTrackers) {
-            GameObject trackerObject = GameObject.Find(tracker.Key);
-            if (trackerObject == null) {
-                trackerObject = Instantiate(trackersPrefab, tracker.Value, Quaternion.identity);
-                trackerObject.name = tracker.Key;
-                trackerObject.transform.parent = trackersParent.transform;
-                trackerObject.GetComponent<MeshRenderer>().material = trackersMaterial;
-            }
-            else
-                trackerObject.transform.position = tracker.Value;
         }
     }
 
