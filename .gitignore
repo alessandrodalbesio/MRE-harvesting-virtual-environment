@@ -72,4 +72,5 @@ crashlytics-build.properties
 /[Aa]ssets/[Ss]treamingAssets/aa/*
 
 # Ignore Oculus folder
-/[Aa]ssets/Oculus/*
+/[Aa]ssets/Oculus.meta
+/[Aa]ssets/Oculus/
